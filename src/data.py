@@ -232,6 +232,7 @@ class ElectricityDataModule:
         tickers: Optional[list[str]] = None,
         max_entities: Optional[int] = None,
         holiday_country: str = "PT",
+        stride: int = 1,
     ):
         self.lookback = lookback
         self.horizon = horizon
@@ -242,6 +243,7 @@ class ElectricityDataModule:
         self.tickers = tickers or DEFAULT_TICKERS
         self.max_entities = max_entities
         self.holiday_country = holiday_country
+        self.stride = stride
         self.scaler = EntityScaler()
         self.entity_map: dict = {}
         self._prepared = False
@@ -406,7 +408,7 @@ class ElectricityDataModule:
             known_future_values = edf[known_future_cols].values.astype(np.float32)
 
             # Create sliding windows
-            for start in range(0, n - self.lookback - self.horizon + 1, 1):
+            for start in range(0, n - self.lookback - self.horizon + 1, self.stride):
                 lb_end = start + self.lookback
                 hz_end = lb_end + self.horizon
 

@@ -47,6 +47,41 @@ Implemented `ElectricityDataModule` (`src/data.py`) that:
 ### Tests
 22/22 tests passing (`pytest tests/`).
 
+## Cycle 3: Training & Evaluation Framework
+
+Implemented the full TFT training and evaluation pipeline.
+
+### New Files
+| File | Purpose |
+|---|---|
+| `src/evaluation.py` | Quantile loss (paper Eq. 3) — numpy and PyTorch |
+| `src/models/tft.py` | Full TFT architecture (PyTorch Lightning) |
+| `src/train.py` | Training with checkpointing & early stopping |
+| `src/evaluate.py` | Test-set evaluation, generates metrics.json |
+| `tests/test_evaluation.py` | 11 tests for quantile loss |
+
+### Architecture
+- Gated Residual Networks (GRN) with skip connections
+- Variable Selection Networks for feature importance
+- Static covariate encoders (entity embeddings)
+- LSTM encoder-decoder for temporal processing
+- Interpretable multi-head attention (shared value weights)
+- Quantile output (P50, P90)
+
+### Results (from metrics.json)
+| Metric | Value |
+|---|---|
+| Test QL P50 | 0.153328 |
+| Test QL P90 | 0.088325 |
+| Model Params | 346K |
+| Entities | 10 / 370 |
+
+### Usage
+```bash
+python3 -m src.train --max_entities 10 --epochs 15 --stride 24
+python3 -m src.evaluate
+```
+
 ## Reports
 
 Each cycle produces:

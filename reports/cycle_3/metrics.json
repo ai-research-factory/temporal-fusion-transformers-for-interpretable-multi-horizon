@@ -1,0 +1,33 @@
+{
+  "sharpeRatio": 0.0,
+  "annualReturn": 0.0,
+  "maxDrawdown": 0.0,
+  "hitRate": 0.0,
+  "totalTrades": 0,
+  "transactionCosts": {
+    "feeBps": 10,
+    "slippageBps": 5,
+    "netSharpe": 0.0
+  },
+  "walkForward": {
+    "windows": 0,
+    "positiveWindows": 0,
+    "avgOosSharpe": 0.0
+  },
+  "customMetrics": {
+    "phase": "3-training-evaluation",
+    "model": "Temporal Fusion Transformer",
+    "quantile_loss_p50": 0.153328,
+    "quantile_loss_p90": 0.088325,
+    "quantile_loss_total": 0.241653,
+    "test_samples": 2120,
+    "horizon": 24,
+    "n_entities": 10,
+    "epochs_trained": 6,
+    "best_val_loss": 0.3145928680896759,
+    "hidden_dim": 64,
+    "data_source": "UCI Electricity",
+    "train_period": "2011-01-01 00:00:00 to 2013-10-19 16:00:00",
+    "test_period": "2014-05-26 21:00:00 to 2015-01-01 00:00:00"
+  }
+}
