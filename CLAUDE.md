@@ -7,7 +7,7 @@ proj_bbe7a92c
 TFT, Transformer, MultimodalForecasting
 
 ## Current Cycle
-2
+3
 
 ## Objective
 Implement, validate, and iteratively improve the paper's approach with production-quality standards.
@@ -71,7 +71,7 @@ df = df.set_index("timestamp")
 
 ## Preflight チェック（実装開始前に必ず実施）
 
-**Phase の実装コードを書く前に**、以下のチェックを実施し結果を `reports/cycle_2/preflight.md` に保存すること。
+**Phase の実装コードを書く前に**、以下のチェックを実施し結果を `reports/cycle_3/preflight.md` に保存すること。
 
 ### 1. データ境界表
 以下の表を埋めて、未来データ混入がないことを確認:
@@ -107,24 +107,25 @@ df = df.set_index("timestamp")
 
 **preflight.md が作成されるまで、Phase の実装コードに進まないこと。**
 
-## ★ 今回のタスク (Cycle 2)
+## ★ 今回のタスク (Cycle 3)
 
 
-### Phase 2: Electricityデータパイプライン構築 [Track ]
+### Phase 3: 学習・評価フレームワークの実装 [Track ]
 
 **Track**:  (A=論文再現 / B=近傍改善 / C=独自探索)
-**ゴール**: Electricityデータセットをダウンロードし、TFTが要求する形式に前処理するデータローダーを実装する。
+**ゴール**: TFTモデルをElectricityデータセットで学習させ、テストセットでQuantile Lossを評価する。
 
 **具体的な作業指示**:
-1. `src/data.py`を作成。2. `ElectricityDataModule`クラスを実装。このクラスはUCIからデータをダウンロードし、論文に従って前処理を行う。3. 前処理には、時間的特徴（day of week, monthなど）の生成、静的特徴（顧客ID）のエンコーディング、lookback/horizonウィンドウに基づいたシーケンスの分割が含まれる。4. PyTorchの`DataLoader`と連携し、(past_inputs, known_future_inputs, static_inputs, targets)のタプル形式でバッチを生成する。5. `notebooks/data_exploration.ipynb`で、データローダーが生成する1バッチを可視化し、形状や値の範囲が正しいことを確認する。
+1. `src/train.py`を作成。Pytorch Lightningを使用して学習ループを実装。2. 損失関数として`QuantileLoss`を実装。P50とP90をターゲットとする。3. Adamオプティマイザと論文記載の学習率スケジュールを使用。4. `src/evaluate.py`を作成し、学習済みモデルをロードしてテストセットで評価し、平均Quantile Lossを計算するスクリプトを実装。5. `python src/train.py`を実行してモデルを学習し、`python src/evaluate.py`で評価結果を`reports/cycle_3/metrics.json`に保存する。
 
 **期待される出力ファイル**:
-- src/data.py
-- notebooks/data_exploration.ipynb
+- src/train.py
+- src/evaluate.py
+- reports/cycle_3/metrics.json
 
 **受入基準 (これを全て満たすまで完了としない)**:
-- データローダーがTFTモデルの入力要件に合った形状のバッチを生成できる
-- データ探索ノートブックで、生成されたバッチの可視化と検証が完了している
+- モデルの学習が完了し、学習済みモデルファイルが保存される
+- `reports/cycle_3/metrics.json`にテストセットでのP50およびP90のQuantile Lossが記録されている
 
 
 
@@ -139,73 +140,8 @@ df = df.set_index("timestamp")
 
 
 ## スコア推移
-Cycle 1: 45%
+Cycle 1: 45% → Cycle 2: 55%
 
-
-
-## 前回の結果
-# Technical Findings — Cycle 2: Electricity Data Pipeline
-
-## Summary
-
-Implemented `ElectricityDataModule` in `src/data.py` that fetches hourly OHLCV data from the ARF Data API (18 US equity tickers) and preprocesses it into TFT-compatible format. The pipeline produces batches of `(past_inputs, known_future_inputs, static_inputs, targets)` matching the paper's input specification.
-
-## Implementation Details
-
-### Data Source
-- **Source**: ARF Data API (`https://ai.1s.xyz/api/data/ohlcv`)
-- **Entities**: 18 US equity tickers (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA, JPM, V, XOM, UNH, PG, HD, MA, DIS, NFLX, INTC, AMD)
-- **Frequency**: 1-hour intervals, ~2 years of data per ticker (~3,474 rows each)
-- **UCI Electricity download failed** (corrupted zip file); ARF OHLCV data used as proxy per escape rules
-
-### Pipeline Architecture
-
-1. **Data Fetching**: `fetch_ticker_data()` downloads from API with local CSV caching
-2. **Temporal Features**: `build_temporal_features()` generates normalized calendar features (hour_of_day, day_of_week, month, day_of_month)
-3. **Entity Scaling**: `EntityScaler` fits per-entity StandardScaler on train split only
-4. **Window Creation**: Sliding windows of (lookback=168, horizon=24) per entity
-5. **Chronological Split**: 70% train / 15% val / 15% test per entity
-
-### Output Tensor Shapes
-| Tensor | Shape | Description |
-|--------|-------|-------------|
-| `past_inputs` | (B, 168, 6) | 2 observed (close, log_volume) + 4 temporal |
-| `known_future_inputs` | (B, 24, 4) | 4 temporal features (calendar, known in advance) |
-| `static_inputs` | (B, 1) | Entity ID (integer for embedding lookup) |
-| `targets` | (B, 24) | Scaled close price over forecast horizon |
-
-### Dataset Sizes (18 entities)
-- Train: 40,320 samples
-- Validation: 5,940 samples
-- Test: 5,950 samples
-
-### Paper Alignment
-- **Lookback = 168** (7 days × 24h): matches paper
-- **Horizon = 24** (24 hours): matches paper
-- **Per-entity normalization**: matches paper
-- **Temporal features**: hour, day_of_week, month, day_of_month (paper also uses holiday flag, omitted)
-- **Static covariate**: entity ID for embedding (paper uses customer ID)
-
-### Leakage Prevention
-- Scaler fit on train data only
-- No centered rolling windows used
-- Chronological split with no overlap
-- All features at time t use only data from t-1 or earlier (except calendar features which are known in advance)
-
-## Tests
-14/14 tests passed:
-- Batch shape verification (4 tests)
-- NaN checks on all splits (3 tests)
-- Value range checks for temporal features (2 tests)
-- Split size validation (2 tests)
-- EntityScaler unit tests (2 tests)
-- Temporal feature generation (1 test)
-
-## Limitations & Open Questions
-- UCI Electricity dataset could not be downloaded (zip file corruption); ARF OHLCV data used as proxy
-- 18 entities vs. paper's 370 customers — smaller scale but sufficient for pipeline validation
-- Holiday feature not implemented (paper includes it)
-- Financial OHLCV data has different statistical properties than electricity consumption data
 
 
 
@@ -216,16 +152,16 @@ Implemented `ElectricityDataModule` in `src/data.py` that fetches hourly OHLCV d
 2. [object Object]
 3. [object Object]
 ### マネージャー指示 (次のアクション)
-1. 【最優先】UCI Electricityデータセットをダウンロードし、`src/data/pipeline.py`に統合する。論文で言及されている370エンティティをロードする`load_electricity_data`関数を新規に作成する。
-2. 【重要】論文で言及されている「祝日フラグ」を特徴量として追加する。`src/features/build_features.py`内の特徴量生成ロジックを修正し、`known_future_inputs`に祝日情報を組み込む。国や地域に応じた祝日ライブラリ（例: `holidays`）の利用を検討する。
-3. 【推奨】`tests/test_data.py`に新しいテストケースを追加し、エンティティ数が370であること、および祝日フラグが特徴量に含まれていることを検証する`test_electricity_data_shape`と`test_holiday_feature_presence`を実装する。
+1. 【最優先】`src/backtest.py`を削除し、新たに`src/evaluation.py`を作成してください。このファイルに、論文の式(3)に基づき、予測値と実測値から指定された分位数のクォンタイルロスを計算する関数 `calculate_quantile_loss(y_true: np.ndarray, y_pred: np.ndarray, quantile: float) -> float` を実装します。また、`tests/test_evaluation.py`を作成し、この関数の正当性を検証するテストケースを追加してください。
+2. 【重要】`src/models/tft.py`に、PyTorch Lightningを利用したTFTモデルのクラス骨格を実装してください。`__init__`、`forward`、`training_step`の各メソッドを定義します。`training_step`内では、損失関数として、実装した`calculate_quantile_loss`をP50とP90に対して呼び出し、その合計を返すように設定してください。
+3. 【推奨】TFTモデルの性能を比較するため、`src/train.py`に学習パイプラインの基本構造を実装してください。このスクリプトは、データローダーからバッチを受け取り、モデルの`training_step`を実行し、エポック毎の検証データに対するクォンタイルロス（P50, P90）を`metrics.json`に追記する機能を持つようにします。まずはダミーのテンソルで動作確認できるレベルで構いません。
 
 
 ## 全体Phase計画 (参考)
 
 ✓ Phase 1: コアモデルのスケルトン実装 — TFTの主要コンポーネントをPyTorchで実装し、合成データでフォワードパスが通る状態にする。
-→ Phase 2: Electricityデータパイプライン構築 — Electricityデータセットをダウンロードし、TFTが要求する形式に前処理するデータローダーを実装する。
-  Phase 3: 学習・評価フレームワークの実装 — TFTモデルをElectricityデータセットで学習させ、テストセットでQuantile Lossを評価する。
+✓ Phase 2: Electricityデータパイプライン構築 — Electricityデータセットをダウンロードし、TFTが要求する形式に前処理するデータローダーを実装する。
+→ Phase 3: 学習・評価フレームワークの実装 — TFTモデルをElectricityデータセットで学習させ、テストセットでQuantile Lossを評価する。
   Phase 4: 解釈可能性コンポーネントの実装と可視化 — 学習済みモデルから変数重要度とアテンション重みを抽出し、可視化する。
   Phase 5: ハイパーパラメータ最適化 — Optunaを使い、主要なハイパーパラメータを論文の推奨値周辺で探索し、検証セットでの性能を最大化する。
   Phase 6: Favoritaデータセットでの汎化性能検証 — 実装したTFTを異なるドメインのFavoritaデータセットに適用し、モデルの汎化性能を検証する。
@@ -317,9 +253,9 @@ Implemented `ElectricityDataModule` in `src/data.py` that fetches hourly OHLCV d
 
 ## 出力ファイル
 以下のファイルを保存してから完了すること:
-- `reports/cycle_2/preflight.md` — Preflight チェック結果（必須、実装前に作成）
-- `reports/cycle_2/metrics.json` — 下記スキーマに従う（必須）
-- `reports/cycle_2/technical_findings.md` — 実装内容、結果、観察事項
+- `reports/cycle_3/preflight.md` — Preflight チェック結果（必須、実装前に作成）
+- `reports/cycle_3/metrics.json` — 下記スキーマに従う（必須）
+- `reports/cycle_3/technical_findings.md` — 実装内容、結果、観察事項
 
 ### metrics.json 必須スキーマ（Single Source of Truth）
 ```json
