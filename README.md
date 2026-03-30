@@ -16,13 +16,16 @@ pytest tests/
 
 ## Data
 
-Data is fetched from the ARF Data API at runtime. Do not commit data files.
+UCI Electricity Load Diagrams 2011-2014 dataset (370 entities) is used as the primary data source.
+Data file (`data/LD2011_2014.txt`) is not committed to git. ARF Data API OHLCV data is available as fallback.
 
 ## Cycle 2: Electricity Data Pipeline
 
 Implemented `ElectricityDataModule` (`src/data.py`) that:
-- Fetches hourly OHLCV data from ARF Data API (18 US equity tickers as entity proxies)
+- Loads UCI Electricity dataset (370 customer entities, 2011-2014)
+- Resamples from 15-min to hourly intervals (matching paper)
 - Generates temporal features (hour, day_of_week, month, day_of_month)
+- Generates Portuguese holiday flags (known-future feature)
 - Applies per-entity normalization (fit on train only)
 - Creates sliding windows (lookback=168, horizon=24) matching the paper
 - Produces TFT-compatible batch tuples: `(past_inputs, known_future_inputs, static_inputs, targets)`
@@ -30,20 +33,19 @@ Implemented `ElectricityDataModule` (`src/data.py`) that:
 ### Batch Shapes
 | Tensor | Shape | Description |
 |--------|-------|-------------|
-| `past_inputs` | (B, 168, 6) | observed + temporal features |
-| `known_future_inputs` | (B, 24, 4) | calendar features |
+| `past_inputs` | (B, 168, 5) | 1 observed (power_usage) + 4 temporal |
+| `known_future_inputs` | (B, 24, 5) | 4 temporal + 1 holiday flag |
 | `static_inputs` | (B, 1) | entity ID |
 | `targets` | (B, 24) | forecast targets |
 
-### Dataset Sizes
-| Split | Samples |
-|-------|---------|
-| Train | 40,320 |
-| Val | 5,940 |
-| Test | 5,950 |
+### Dataset (per metrics.json)
+- **Entities**: 370
+- **Train period**: 2011-01-01 to 2013-10-19
+- **Val period**: 2013-10-19 to 2014-05-26
+- **Test period**: 2014-05-26 to 2015-01-01
 
 ### Tests
-14/14 tests passing (`pytest tests/`).
+22/22 tests passing (`pytest tests/`).
 
 ## Reports
 

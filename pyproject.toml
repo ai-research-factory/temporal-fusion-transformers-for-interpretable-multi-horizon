@@ -3,4 +3,4 @@ name = "temporal-fusion-transformers-for-interpretable-multi-horizon"
 version = "0.1.0"
 description = "Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting"
 requires-python = ">=3.10"
-dependencies = ["numpy", "pandas", "scikit-learn", "torch", "matplotlib", "tqdm"]
+dependencies = ["numpy", "pandas", "scikit-learn", "torch", "matplotlib", "tqdm", "holidays"]
