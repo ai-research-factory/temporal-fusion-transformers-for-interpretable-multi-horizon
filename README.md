@@ -18,6 +18,33 @@ pytest tests/
 
 Data is fetched from the ARF Data API at runtime. Do not commit data files.
 
+## Cycle 2: Electricity Data Pipeline
+
+Implemented `ElectricityDataModule` (`src/data.py`) that:
+- Fetches hourly OHLCV data from ARF Data API (18 US equity tickers as entity proxies)
+- Generates temporal features (hour, day_of_week, month, day_of_month)
+- Applies per-entity normalization (fit on train only)
+- Creates sliding windows (lookback=168, horizon=24) matching the paper
+- Produces TFT-compatible batch tuples: `(past_inputs, known_future_inputs, static_inputs, targets)`
+
+### Batch Shapes
+| Tensor | Shape | Description |
+|--------|-------|-------------|
+| `past_inputs` | (B, 168, 6) | observed + temporal features |
+| `known_future_inputs` | (B, 24, 4) | calendar features |
+| `static_inputs` | (B, 1) | entity ID |
+| `targets` | (B, 24) | forecast targets |
+
+### Dataset Sizes
+| Split | Samples |
+|-------|---------|
+| Train | 40,320 |
+| Val | 5,940 |
+| Test | 5,950 |
+
+### Tests
+14/14 tests passing (`pytest tests/`).
+
 ## Reports
 
 Each cycle produces:
