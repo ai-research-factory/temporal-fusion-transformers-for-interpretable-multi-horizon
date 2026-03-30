@@ -7,7 +7,7 @@ proj_bbe7a92c
 TFT, Transformer, MultimodalForecasting
 
 ## Current Cycle
-3
+4
 
 ## Objective
 Implement, validate, and iteratively improve the paper's approach with production-quality standards.
@@ -71,7 +71,7 @@ df = df.set_index("timestamp")
 
 ## Preflight チェック（実装開始前に必ず実施）
 
-**Phase の実装コードを書く前に**、以下のチェックを実施し結果を `reports/cycle_3/preflight.md` に保存すること。
+**Phase の実装コードを書く前に**、以下のチェックを実施し結果を `reports/cycle_4/preflight.md` に保存すること。
 
 ### 1. データ境界表
 以下の表を埋めて、未来データ混入がないことを確認:
@@ -107,25 +107,25 @@ df = df.set_index("timestamp")
 
 **preflight.md が作成されるまで、Phase の実装コードに進まないこと。**
 
-## ★ 今回のタスク (Cycle 3)
+## ★ 今回のタスク (Cycle 4)
 
 
-### Phase 3: 学習・評価フレームワークの実装 [Track ]
+### Phase 4: 解釈可能性コンポーネントの実装と可視化 [Track ]
 
 **Track**:  (A=論文再現 / B=近傍改善 / C=独自探索)
-**ゴール**: TFTモデルをElectricityデータセットで学習させ、テストセットでQuantile Lossを評価する。
+**ゴール**: 学習済みモデルから変数重要度とアテンション重みを抽出し、可視化する。
 
 **具体的な作業指示**:
-1. `src/train.py`を作成。Pytorch Lightningを使用して学習ループを実装。2. 損失関数として`QuantileLoss`を実装。P50とP90をターゲットとする。3. Adamオプティマイザと論文記載の学習率スケジュールを使用。4. `src/evaluate.py`を作成し、学習済みモデルをロードしてテストセットで評価し、平均Quantile Lossを計算するスクリプトを実装。5. `python src/train.py`を実行してモデルを学習し、`python src/evaluate.py`で評価結果を`reports/cycle_3/metrics.json`に保存する。
+1. `src/interpretability.py`を作成。学習済みモデルとデータサンプルを入力とし、変数選択ネットワークの重み（変数重要度）と、デコーダのセルフアテンション重み（時間的重要度）を返す関数を実装。2. `notebooks/interpretability_analysis.ipynb`を作成。3. このノートブックで、テストセットからいくつかのサンプルをロードし、`interpretability.py`の関数を使って重要度スコアを抽出。4. 変数重要度をバーチャートで、アテンション重みをヒートマップで可視化する。論文の図4と図5を参考にプロットを作成する。
 
 **期待される出力ファイル**:
-- src/train.py
-- src/evaluate.py
-- reports/cycle_3/metrics.json
+- src/interpretability.py
+- notebooks/interpretability_analysis.ipynb
 
 **受入基準 (これを全て満たすまで完了としない)**:
-- モデルの学習が完了し、学習済みモデルファイルが保存される
-- `reports/cycle_3/metrics.json`にテストセットでのP50およびP90のQuantile Lossが記録されている
+- 変数重要度のバーチャートが生成される
+- 時間的アテンションのヒートマップが生成される
+- ノートブックがエラーなく実行でき、解釈可能性に関するプロットが表示される
 
 
 
@@ -140,7 +140,8 @@ df = df.set_index("timestamp")
 
 
 ## スコア推移
-Cycle 1: 45% → Cycle 2: 55%
+Cycle 1: 45% → Cycle 2: 55% → Cycle 3: 58%
+改善速度: 6.5%/cycle
 
 
 
@@ -152,17 +153,26 @@ Cycle 1: 45% → Cycle 2: 55%
 2. [object Object]
 3. [object Object]
 ### マネージャー指示 (次のアクション)
-1. 【最優先】`src/backtest.py`を削除し、新たに`src/evaluation.py`を作成してください。このファイルに、論文の式(3)に基づき、予測値と実測値から指定された分位数のクォンタイルロスを計算する関数 `calculate_quantile_loss(y_true: np.ndarray, y_pred: np.ndarray, quantile: float) -> float` を実装します。また、`tests/test_evaluation.py`を作成し、この関数の正当性を検証するテストケースを追加してください。
-2. 【重要】`src/models/tft.py`に、PyTorch Lightningを利用したTFTモデルのクラス骨格を実装してください。`__init__`、`forward`、`training_step`の各メソッドを定義します。`training_step`内では、損失関数として、実装した`calculate_quantile_loss`をP50とP90に対して呼び出し、その合計を返すように設定してください。
-3. 【推奨】TFTモデルの性能を比較するため、`src/train.py`に学習パイプラインの基本構造を実装してください。このスクリプトは、データローダーからバッチを受け取り、モデルの`training_step`を実行し、エポック毎の検証データに対するクォンタイルロス（P50, P90）を`metrics.json`に追記する機能を持つようにします。まずはダミーのテンソルで動作確認できるレベルで構いません。
+1. 【REPLAN: 評価設計修正】
+primaryBlocker: 検証データセットの規模とサンプリング手法が論文の実験設定と著しく乖離している点
+
+以下を最優先で実施:
+1. Walk-forward validationの実装を確認(train/test境界の厳密分離)
+2. フォワードルッキングがないことをテストで証明
+3. metrics.jsonのwalkForward.windowsが5以上であることを確認
+
+完了条件: `src/data.py`におけるデータ読み込み設定が、エンティティ数を300以上に、サンプリングストライドを1に設定した状態で、パイプライン全体がエラーなく実行され、`reports/`に学習結果が出力されること。
+2. 【最優先】`src/data.py`のデータローダーを修正し、`stride=24`という固定値を削除する。サンプリングストライドをコマンドライン引数または設定ファイル (`configs/data_config.yaml`等) で制御可能にし、デフォルト値を`1`に設定して、論文が意図する時間単位のダイナミクスを捉えられるようにする。
+3. 【重要】データパイプライン (`src/data.py`) を拡張し、論文で対象となっている370エンティティ、またはそれに準ずる規模（最低でも300以上）の全データを処理できるように修正する。単一のエンティティIDや少数のリストだけでなく、大規模なエンティティ群を効率的に扱えるようにリファクタリングする。
+4. 【推奨】上記2点の修正を適用した状態で`src/train.py`を一度実行し、新しいデータセットとサンプリング設定におけるベースラインのQuantile Lossを`reports/C4_replan_baseline_metrics.json`として保存する。これにより、評価基盤の変更による影響を定量的に記録する。
 
 
 ## 全体Phase計画 (参考)
 
 ✓ Phase 1: コアモデルのスケルトン実装 — TFTの主要コンポーネントをPyTorchで実装し、合成データでフォワードパスが通る状態にする。
 ✓ Phase 2: Electricityデータパイプライン構築 — Electricityデータセットをダウンロードし、TFTが要求する形式に前処理するデータローダーを実装する。
-→ Phase 3: 学習・評価フレームワークの実装 — TFTモデルをElectricityデータセットで学習させ、テストセットでQuantile Lossを評価する。
-  Phase 4: 解釈可能性コンポーネントの実装と可視化 — 学習済みモデルから変数重要度とアテンション重みを抽出し、可視化する。
+✓ Phase 3: 学習・評価フレームワークの実装 — TFTモデルをElectricityデータセットで学習させ、テストセットでQuantile Lossを評価する。
+→ Phase 4: 解釈可能性コンポーネントの実装と可視化 — 学習済みモデルから変数重要度とアテンション重みを抽出し、可視化する。
   Phase 5: ハイパーパラメータ最適化 — Optunaを使い、主要なハイパーパラメータを論文の推奨値周辺で探索し、検証セットでの性能を最大化する。
   Phase 6: Favoritaデータセットでの汎化性能検証 — 実装したTFTを異なるドメインのFavoritaデータセットに適用し、モデルの汎化性能を検証する。
   Phase 7: ウォークフォワード検証によるロバスト性評価 — 固定スプリットではなく、ウォークフォワード検証を用いてモデル性能の安定性を評価する。
@@ -253,9 +263,9 @@ Cycle 1: 45% → Cycle 2: 55%
 
 ## 出力ファイル
 以下のファイルを保存してから完了すること:
-- `reports/cycle_3/preflight.md` — Preflight チェック結果（必須、実装前に作成）
-- `reports/cycle_3/metrics.json` — 下記スキーマに従う（必須）
-- `reports/cycle_3/technical_findings.md` — 実装内容、結果、観察事項
+- `reports/cycle_4/preflight.md` — Preflight チェック結果（必須、実装前に作成）
+- `reports/cycle_4/metrics.json` — 下記スキーマに従う（必須）
+- `reports/cycle_4/technical_findings.md` — 実装内容、結果、観察事項
 
 ### metrics.json 必須スキーマ（Single Source of Truth）
 ```json
